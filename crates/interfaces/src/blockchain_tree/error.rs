@@ -8,6 +8,24 @@ use crate::{
 };
 use reth_primitives::{BlockHash, BlockNumber, SealedBlock};
 
+// TODO: automate the process outlined below so the user can just send in a debugging package
+/// The error message that we include in invalid state root errors to tell users what information
+/// they should include in a bug report, since true state root errors can be impossible to debug
+/// with just basic logs.
+pub const INVALID_STATE_ROOT_ERROR_MESSAGE: &str = r#"
+Invalid state root error on new payload!
+This is an error that likely requires a report to the reth team with additional information.
+Please include the following information in your report:
+ * This error message
+ * The state root of the block that was rejected
+ * The output of `reth db stats --checksum` from the database that was being used. This will take a long time to run!
+ * 50-100 lines of logs before and after the first occurrence of this log message. Please search your log output for the first observed occurrence of MAGIC_STATE_ROOT.
+ * The debug logs from __the same time period__. To find the default location for these logs, run:
+   `reth --help | grep -A 4 'log.file.directory'`
+
+Once you have this information, please submit a github issue at https://github.com/paradigmxyz/reth/issues/new
+"#;
+
 /// Various error cases that can occur when a block violates tree assumptions.
 #[derive(Debug, Clone, Copy, thiserror::Error, Eq, PartialEq)]
 pub enum BlockchainTreeError {
@@ -164,14 +182,26 @@ struct InsertBlockErrorData {
 
 impl std::fmt::Display for InsertBlockErrorData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Failed to insert block (hash={}, number={}, parent_hash={}): {}",
-            self.block.hash(),
-            self.block.number,
-            self.block.parent_hash,
-            self.kind
-        )
+        if self.kind.is_state_root_error() {
+            write!(
+                f,
+                "Failed to insert block (hash={}, number={}, parent_hash={}): {}, {}",
+                self.block.hash(),
+                self.block.number,
+                self.block.parent_hash,
+                self.kind,
+                INVALID_STATE_ROOT_ERROR_MESSAGE
+            )
+        } else {
+            write!(
+                f,
+                "Failed to insert block (hash={}, number={}, parent_hash={}): {}",
+                self.block.hash(),
+                self.block.number,
+                self.block.parent_hash,
+                self.kind
+            )
+        }
     }
 }
 
@@ -241,6 +271,36 @@ impl InsertBlockErrorKind {
     /// Returns true if the error is a consensus error
     pub fn is_consensus_error(&self) -> bool {
         matches!(self, InsertBlockErrorKind::Consensus(_))
+    }
+
+    /// Returns true if this error is a state root error
+    pub fn is_state_root_error(&self) -> bool {
+        // we need to get the state root errors inside of the different variant branches
+        match self {
+            InsertBlockErrorKind::Execution(err) => {
+                matches!(
+                    err,
+                    BlockExecutionError::Validation(BlockValidationError::StateRoot { .. })
+                )
+            }
+            InsertBlockErrorKind::Canonical(err) => {
+                matches!(
+                    err,
+                    CanonicalError::Validation(BlockValidationError::StateRoot { .. }) |
+                        CanonicalError::Provider(
+                            ProviderError::StateRootMismatch(_) |
+                                ProviderError::UnwindStateRootMismatch(_)
+                        )
+                )
+            }
+            InsertBlockErrorKind::Provider(err) => {
+                matches!(
+                    err,
+                    ProviderError::StateRootMismatch(_) | ProviderError::UnwindStateRootMismatch(_)
+                )
+            }
+            _ => false,
+        }
     }
 
     /// Returns true if the error is caused by an invalid block

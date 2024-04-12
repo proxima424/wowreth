@@ -4,7 +4,7 @@ use reth_db::{
     tables,
     transaction::{DbTx, DbTxMut},
 };
-use reth_interfaces::consensus;
+use reth_interfaces::{blockchain_tree::error::INVALID_STATE_ROOT_ERROR_MESSAGE, consensus};
 use reth_primitives::{
     stage::{EntitiesCheckpoint, MerkleCheckpoint, StageCheckpoint, StageId},
     trie::StoredSubNode,
@@ -196,7 +196,10 @@ impl<DB: Database> Stage<DB> for MerkleStage {
             let progress = StateRoot::from_tx(tx)
                 .with_intermediate_state(checkpoint.map(IntermediateStateRootState::from))
                 .root_with_progress()
-                .map_err(|e| StageError::Fatal(Box::new(e)))?;
+                .map_err(|e| {
+                    error!(target: "sync::stages::merkle", %e, ?current_block_number, ?to_block, "State root with progress failed! {INVALID_STATE_ROOT_ERROR_MESSAGE}");
+                    StageError::Fatal(Box::new(e))
+                })?;
             match progress {
                 StateRootProgress::Progress(state, hashed_entries_walked, updates) => {
                     updates.flush(tx)?;
@@ -230,7 +233,10 @@ impl<DB: Database> Stage<DB> for MerkleStage {
             debug!(target: "sync::stages::merkle::exec", current = ?current_block_number, target = ?to_block, "Updating trie");
             let (root, updates) =
                 StateRoot::incremental_root_with_updates(provider.tx_ref(), range)
-                    .map_err(|e| StageError::Fatal(Box::new(e)))?;
+                    .map_err(|e| {
+                        error!(target: "sync::stages::merkle", %e, ?current_block_number, ?to_block, "Incremental state root failed! {INVALID_STATE_ROOT_ERROR_MESSAGE}");
+                        StageError::Fatal(Box::new(e))
+                    })?;
             updates.flush(provider.tx_ref())?;
 
             let total_hashed_entries = (provider.count_entries::<tables::HashedAccounts>()? +
@@ -325,7 +331,7 @@ fn validate_state_root(
     if got == expected.state_root {
         Ok(())
     } else {
-        warn!(target: "sync::stages::merkle", ?target_block, ?got, ?expected, "Failed to verify block state root");
+        error!(target: "sync::stages::merkle", ?target_block, ?got, ?expected, "Failed to verify block state root! {INVALID_STATE_ROOT_ERROR_MESSAGE}");
         Err(StageError::Block {
             error: BlockErrorKind::Validation(consensus::ConsensusError::BodyStateRootDiff(
                 GotExpected { got, expected: expected.state_root }.into(),

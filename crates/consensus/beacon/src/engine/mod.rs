@@ -1400,7 +1400,12 @@ where
                 warn!(target: "consensus::engine", %err, "Failed to insert downloaded block");
                 if err.kind().is_invalid_block() {
                     let (block, err) = err.split();
-                    warn!(target: "consensus::engine", invalid_number=?block.number, invalid_hash=?block.hash(), %err, "Marking block as invalid");
+
+                    if err.is_state_root_error() {
+                        error!(target: "consensus::engine", invalid_hash=?block.hash(), invalid_number=?block.number, %err, "Marking block as invalid.");
+                    } else {
+                        warn!(target: "consensus::engine", invalid_hash=?block.hash(), invalid_number=?block.number, %err, "Marking block as invalid.");
+                    }
 
                     self.invalid_headers.insert(block.header);
                 }
