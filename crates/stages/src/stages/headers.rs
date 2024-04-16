@@ -22,9 +22,8 @@ use reth_primitives::{
     BlockHash, BlockNumber, SealedHeader, StaticFileSegment,
 };
 use reth_provider::{
-    providers::{StaticFileProvider, StaticFileWriter},
-    BlockHashReader, DatabaseProviderRW, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider,
-    HeaderSyncMode,
+    providers::{StaticFileProvider, StaticFileWriter}, DatabaseProviderRW, HeaderProvider,
+    HeaderSyncGap, HeaderSyncGapProvider, HeaderSyncMode,
 };
 use std::{
     sync::Arc,
