@@ -267,14 +267,10 @@ reth-trie-parallel = { path = "crates/trie-parallel" }
 reth-node-events = { path = "crates/node/events" }
 
 # revm
-revm = { version = "8.0.0", features = [
-    "std",
-    "secp256k1",
-], default-features = false }
-revm-primitives = { version = "3.1.0", features = [
-    "std",
-], default-features = false }
-revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "dc614ee" }
+revm = { version = "8.0.0", features = ["std", "secp256k1"], default-features = false }
+revm-primitives = { version = "3.1.0", features = ["std"], default-features = false }
+# revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", rev = "dc614ee" }
+revm-inspectors = { git = "https://github.com/paradigmxyz/evm-inspectors", branch = "bumprevm" }
 
 # eth
 alloy-chains = "0.1.15"
@@ -384,3 +380,9 @@ proptest-derive = "0.4"
 serial_test = "3"
 similar-asserts = "1.5.0"
 test-fuzz = "5"
+
+[patch.crates-io]
+revm = { git = "https://github.com/danipopes/revm", branch = "refactor-opinfo" }
+revm-interpreter = { git = "https://github.com/danipopes/revm", branch = "refactor-opinfo" }
+revm-precompile = { git = "https://github.com/danipopes/revm", branch = "refactor-opinfo" }
+revm-primitives = { git = "https://github.com/danipopes/revm", branch = "refactor-opinfo" }
